@@ -1,0 +1,323 @@
+
+USE teamproject;
+
+ SET FOREIGN_KEY_CHECKS=0;
+ CREATE TABLE `continent_list` (
+   `continent` varchar(50) NOT NULL,
+   `country_id` varchar(50) NOT NULL,
+    PRIMARY KEY (`country_id`)
+ );
+
+SET FOREIGN_KEY_CHECKS=0;
+CREATE TABLE `carbon_emissions` (
+    `country_id` varchar(50) NOT NULL,
+  `carbon_emissions` decimal(20,2) ,
+  `carbon_growth` decimal(20,2) ,
+  `emissions_transport` decimal(20,2) ,
+  `emissions_industry` decimal(20,2) ,
+  `emissions_agriculture` decimal(20,2) ,
+  PRIMARY KEY (`country_id`)
+  );
+  
+SET FOREIGN_KEY_CHECKS=0;
+CREATE TABLE `clean_innovation` (
+    `country_id` varchar(50) NOT NULL,
+  `patents` decimal(20,2) ,
+  `energy_investment` decimal(20,2) ,
+  `foodtech_investment` decimal(20,2) ,
+  PRIMARY KEY (`country_id`)
+  );
+SET FOREIGN_KEY_CHECKS=0;
+CREATE TABLE `climate_policy` (
+    `country_id` varchar(50) NOT NULL,
+	`climate_action` decimal(20,2),
+  `carbon_pricing` decimal(20,2) ,
+  `agriculture_strategy` decimal(20,2) ,
+  `pandemic_pivot` decimal(20,2) ,
+  PRIMARY KEY (`country_id`)
+ );
+
+SET FOREIGN_KEY_CHECKS=0;
+CREATE TABLE `energy_transition` (
+    `country_id` varchar(50) NOT NULL,
+	`renewable_energy` decimal(20,2),
+  `renewable_contribution` decimal(20,2) ,
+  PRIMARY KEY (`country_id`)
+);
+
+SET FOREIGN_KEY_CHECKS=0;
+CREATE TABLE `green_society` (
+    `country_id` varchar(50) NOT NULL,
+	`green_buildings` decimal(20,2),
+  `recycling_efforts` decimal(20,2) ,
+   `forestation_change` decimal(20,2) ,
+    `meat_diary_consume` decimal(20,2) ,
+  PRIMARY KEY (`country_id`)
+);
+
+SET FOREIGN_KEY_CHECKS=0;
+CREATE TABLE `green_totalscores` (
+    `country_id` varchar(50) NOT NULL,
+	`total_emissions` decimal(20,2),
+  `total_energy_transition` decimal(20,2) ,
+   `total_green_society` decimal(20,2) ,
+    `total_clean_innovation` decimal(20,2) ,
+    `total_climate_policy` decimal(20,2) ,
+    `green_index` decimal(20,2) ,
+  PRIMARY KEY (`country_id`)
+);
+
+SET FOREIGN_KEY_CHECKS=0;
+CREATE TABLE `population_index` (
+  `country` varchar(50) NOT NULL,
+  `population_2021` decimal(20,2) ,
+  `population_2020` decimal(20,2) ,
+  `population_rank` decimal(20,2) ,
+  PRIMARY KEY (`country`)
+  );
+
+
+
+
+USE teamproject;
+
+-- Single Table Queries : 
+
+-- Before analysing the whole dataset we want to get the general idea on what are the maximum, minimun and average Green index scores in this dataset.alter
+-- For that, We used aggregate functions MAX(), MIN(), AVG(). For the everage green index we wanted to get the integer number, that's why we used function ROUND on the result.
+select max(green_index) as Max_Green_Index, min(green_index) as Min_Green_Index, round(avg(green_index)) as Average_Green_Index
+from green_totalscores;
+
+-- Evaluation of the top 5 most populated countires​
+-- We used limit to choose the top 5 countires in terms of population_rank​
+-- We decided to evaluate the most populated countries to get the insight into their efforts in fighting climate change. ​Also, the current level of sustainble development of those countires is crucial for the envrionment, so it is necessary to examine their scores. ​
+select country, population_rank 
+from population_index 
+order by population_rank 
+limit 5; 
+
+-- Determination of the continent of the top 5 populated countries
+-- Here we use operator IN which allows us to specify multiple country_id in a WHERE clause
+select continent, country_id 
+from continent_list 
+where country_id in ('China','US','Indonesia','Pakistan','Pakistan','India'); 
+
+-- Calculation of the percantage of the population change between 2020 and 2021 in the most 5 populated countries
+-- For that purpose we conducted calculation in the brackets and used FORMAT function on the result to leave only two numbers after the coma and we gave the name to the calculated value "Percent_Population_change". Here REGEXP operator is used to get the outcome for the countries we determined before. In the end we ordered the result by the "Percent_Population_change" value in descending order.
+
+select country,format((((population_2021-population_2020)/population_2020)*100),2) as Percent_Population_change
+from population_index
+where country regexp 'China|United States$|Indonesia|Pakistan|India' 
+order by Percent_Population_change desc;
+
+
+
+-- Queries using LIKE : 
+
+-- To mesure the engagement India, Indonesia, Pakistan and China we display their renewable contribution next to the international mean. By this comparison, we can see that only 21% of asian countries are above international mean in term of renewable contribution.
+-- Firstly, we used aggregate function AVG() to calculate the average renewable_energy and we used on the result the function FORMAT() to have only 2 numbers after the comma. Later we use LIKE operator to match and get in the tabble the overview of the couuntries which are on the continent which starts from 'As'
+select country_id,renewable_energy,renewable_contribution, 
+(select format(avg(renewable_contribution),2) 
+from energy_transition) as "World's mean renewable contribution" 
+from energy_transition 
+join continent_list 
+using (country_id) 
+where continent like 'As%'  
+order by renewable_contribution DESC; 
+
+-- Display the green index and pandemic pivot for countries with a pandemic pivot between 4.0 and 4.99
+-- We then calculate the average green index for these countries and can observe that green index and pandemic pivot are actually strongly correlated
+
+select country_id, c.green_index, o.pandemic_pivot,
+(select format(avg(green_index),2)
+from green_totalscores c
+join climate_policy o
+using(country_id) 
+where o.pandemic_pivot like '4.0%') as 'Average green index for a 4 pandemic pivot level'
+from green_totalscores c
+join climate_policy o
+using(country_id)
+where pandemic_pivot like '4.0%'
+order by c.green_index DESC limit 15;
+
+-- Here, we're analysing the pandemic_pivot as an aggregate of other values like climate_action, agriculture_strategy, carbon_pricing or energy_investment.
+-- However, we could need to compensate some variable as carbon_pricing by the carbon_emissions.
+-- Theses countries all have a poor climate action despite of very good agriculture stragies. Even if the carbon_pricing is more developped in US, US emission is one of the highest which it counterbalance his impact.
+
+select o.country_id, o.pandemic_pivot,o.climate_action,o.agriculture_strategy,t.energy_investment,o.carbon_pricing,u.carbon_emissions
+from climate_policy o
+join clean_innovation t
+using (country_id)
+join carbon_emissions u
+using (country_id)
+where pandemic_pivot like '4.0%'
+and country_id regexp 'Pakistan|^China|Indonesia|United States|India';
+
+-- In order to compare the previous pandemic_pivot and related variable, we will now display the country with the best pandemic pivot
+-- As we can see, New Zealand have a 8.50 pandemic pivot and a very effective carbon_pricing althrought a low level of carbon emission.
+
+select o.country_id, o.pandemic_pivot,o.climate_action,o.agriculture_strategy,t.energy_investment,o.carbon_pricing,u.carbon_emissions
+from climate_policy o
+join clean_innovation t
+using (country_id)
+join carbon_emissions u
+using (country_id)
+where pandemic_pivot like '8.5%';
+
+
+
+-- Queries using REGEXP : 
+
+-- On this step our goal is to analyse the carbon emission growth of top 5 populated countries and the tangible measures these countries have taken to reduce the carbon emission. 
+-- As the analysis is concentrated on the top 5 populated countries, we use REGEXP to match the names of these countries which were determined before so that we will get the overview only for them. In front of the China is used the sign ^, which means that the word should start with 'China', without this condition we will get additionally in the output the overview of the country_id "Hong Kong, China"​
+-- Our idea, is the higher carbon emissions growth the country has, the more mesuares that country should undertake. Comparing by columns, Indonesia and Pakistan need to focus on green buildings to improve the situation; In addition, Every country except for United States should increase the natural reforestration.
+select gs.country_id, gs.green_buildings, gs.forestation_change, ce.carbon_growth 
+from green_society gs 
+join carbon_emissions ce 
+using (country_id) 
+where gs.country_id regexp 'China|United States|Indonesia|Pakistan|India' 
+group by gs.country_id 
+order by ce.carbon_growth desc; 
+
+
+-- We want to determine the level of efforts that top 5 populated countries make to positively affect social activities related to recycling. As we known that the more population, the more waste produced in the country.
+-- To find it out, we use REGEXP function to match scores pattern of the most populated countries as we know that their score are equal to 1.00,2.00,3.00,4.00,5.00, and we also use the symbol ^ before every score to get the countries which have scores staring from these numbers.
+-- Hence, we see that all countries except for the US performing pretty bad in recycling, which should be improved.
+select country_id, recycling_efforts
+from green_society 
+where country_id in (  
+select country
+from population_index 
+where population_rank regexp '^1.00|^2.00|^3.00|^4.00|^5.00')
+order by recycling_efforts;
+
+
+-- continental agriculture strategy and agriculture emissions
+-- Because we focus on TOP 5 most population countries which are in Asia and South Amarica; so overview the continental sustainability in agriculture in two continent would helpful to know the context of the TOP 5 countries in this domain
+-- Most Asian countries have very unbalanced proportion (Indonesia and Pakistan the most)  in agriculture; eventhough they have super good strategy, but they don't find the way to decrease the emissions in agriculture
+select cl.country_id,cl.continent, format((ce.emissions_agriculture/cp.agriculture_strategy),3) as EmissionsVSAgricultureStrategy
+from carbon_emissions ce
+join climate_policy cp
+using (country_id)
+join continent_list cl
+using (country_id)
+where cl.continent regexp 'Asia|South America'
+order by EmissionsVSAgricultureStrategy;
+
+-- Overview of the countries with the lowest and highest contribution to sustainable technology research and development, particularly related to climate change impact
+-- To find the countries with the lowest and higest contribution in gaining the patents granted for environmental technology we decied to use operator REGEXP looking for the patterns which start from 1. and 2. for the lowest, and 9. and 10. for the countries with the highest score in paterns indicator.
+SELECT country_id, patents
+FROM clean_innovation
+where patents regexp '^1.|^2.|^9.|^10.'
+order by patents;
+
+
+
+-- Queries using JOIN :  
+
+
+-- With this query we want to see the average green index per each continent and determine the continent with the lowest green index
+-- To get the required result we need to JOIN 2 tables - green_totalscores and continent_list using the common field country_id, also in this query we calculated the average green index using the aggregate function AVG() and ordering the outcome in the end by the result of the calculated value.
+-- As a result we see, that Asia has the lowest average green score, considering that we are analysing top 5 populated countries, where 4 of them are Asian countries, we now can try to find the country with the highest green index and population from Europe to look at its general situation and to see what recommendation we can implement for Asian countries, which are used in Europe 
+SELECT c.continent, avg(g.green_index) as 'Average green index' 
+FROM green_totalscores as g 
+join continent_list as c 
+using(country_id) 
+group by c.continent 
+order by avg(g.green_index); 
+
+-- Review of the overall green scores of the top 5 populated countries.
+-- In this query we JOIN table green_total scores with the population_index table so that we can only see our top 5 populated countries where population rank is < 6.
+-- From the query we can see, that India, the US and Chiba contribute in various dimensions to be greener; especially India; From which, we can go into details to find more about these four aspects[emisions, transition, innovation and policy] 
+-- India has 3 fields that have score higher than 5 (green_index, climate_policy and clean_innovation);  
+-- the US has 2 (total_emissions and clean_innovation) 
+-- China has 1 (clean_innovation) 
+-- Pakistan and Indonesia may refer to these countries to become “greener”. 
+select pi.country, gt.green_index, gt.total_emissions, gt.total_energy_transition, gt.total_clean_innovation, gt.total_climate_policy  
+from green_totalscores gt 
+join population_index pi
+on pi.country=gt.country_id 
+where pi.population_rank < 6 
+order by gt.green_index; 
+
+-- Evaluation of the carbon_emissions in different economic branches
+-- To get the required result we need to JOIN 2 tables - popilation_index and carbon_emission using 'country' field from population_index table and 'country_id' field from carbon_emission. ​We also set the condition using WHERE clause for the population_rank to amount less than 6 to select the top 5 populated countires​
+
+select pi.country, ce.carbon_emissions, ce.emissions_transport, ce.emissions_industry, ce.emissions_agriculture
+from population_index as pi
+join carbon_emissions as ce
+on pi.country=ce.country_id
+where pi.population_rank < '6.00'
+order by ce.carbon_emissions;
+
+
+-- to see which country dedicated to create stainability urban living envirement and help protection of local habitats \
+-- we JOIN 2 tables - population_index and green_society using field country and field country_id
+select pi.country, pi.population_rank, gs.green_buildings, gs.recycling_efforts
+from population_index pi
+join green_society gs
+on pi.country=country_id
+where population_rank < 6
+order by gs.green_buildings;
+
+
+
+-- Task 6 -  Subqueries : 
+
+-- Goal: to determine the highest calories among the top 5 populated countries and whether these countries taking measure to decrease the consumption of meat and diary by investing into the foodtech.
+-- To get the overview of the level of calories of the top 5 populated countries we decided to make the subquery in the WHERE clause, this way we can get the outcome only for the required countries which we get as a result in the subqeury.
+-- As a result, we can say that China should start investing more on food-tech to shift food production and consumption toward sustainability, for USA, it’s necessary to promote the reduction of consumption of meat and diary as this country has the highest calories consumption; 
+select gs.country_id, gs.meat_diary_consume, ci.foodtech_investment
+from green_society gs 
+join clean_innovation ci 
+using (country_id)  
+where country_id in (  
+select country
+from population_index 
+where population_rank regexp '^1.00|^2.00|^3.00|^4.00|^5.00')
+ORDER BY gs.meat_diary_consume; 
+
+-- Evaluation of the balance of the contribution in renewable energy
+-- Subquery in FROM and SELECT clause. We also used IS NOT NULL to get rid of the null value row at the bottom of the table.​ We decided to calculate the Contribution Gap to examine the level of renewable energy contribution and investments in renewable Energy sources in selected countires.​
+-- If the value is close to 0 ― the efforts between renewable energy production and renewable contribution are balanced.
+
+select * from ( 
+select country,  
+(select (renewable_energy-renewable_contribution) as ContributionGap 
+from energy_transition 
+where pi.country=country_id) as ContributionGAP, 
+(select energy_investment from clean_innovation where country_id=pi.country) as Energy_Invest 
+from population_index pi 
+where pi.country regexp 'China|United States|Indonesia|Pakistan|India' 
+order by ContributionGap) as summary 
+where ContributionGap is not null; 
+
+-- Climate policies of the top 5 populated countries
+-- In this query We made a subquery inside a WHERE clause 
+-- India is perfoming well the in policy sector but it should consider implementation of carbon taxes or carbon trading markets. Indonesia, Pakistan and USA are should take measures to meete the requirements of the Paris Agreement, and the effectiveness of policy frameworks being used to achieve them. 
+
+select country_id, climate_action,carbon_pricing, pandemic_pivot 
+from climate_policy cp 
+where country_id in 
+(select country 
+from population_index 
+where country=cp.country_id and population_rank<6 
+order by population_rank); 
+
+-- Goal: To evaluate the recycling efforts of countries and investments/decidation in green patents development -- Conclusion: We can observe that China is taking the lowest efforts in waste recycling, however it is clearly trying to change this tendency by investing strongly in green patents
+-- On the other hand Indonesia and Pakistan are also left behind in waste recycling but at the same time they are not making any efforts to change this situation because theirs green patents score is the lowerst among all of selected countires
+-- The best country in terms of recycling is USA with quite balanced score for waste recycling and green patterns
+select country,
+(select recycling_efforts
+from green_society
+where pi.country=country_id) as waste_recycling_efforts,
+(select patents
+from clean_innovation
+where pi.country=country_id) as green_patents
+from population_index pi
+where population_rank<6
+order by green_patents desc;
+
+
+
+
